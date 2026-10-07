@@ -1,4 +1,5 @@
 import * as builder from 'electron-builder'
+import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as dotProp from 'dot-prop'
@@ -128,6 +129,18 @@ async function buildWithOptions(options: builder.CliOptions, buildInfo: BuildInf
       // Parent app has network permissions, child processes have minimal permissions
       dotProp.set(packageJson, 'build.mac.entitlements', 'res/entitlements.mac.plist')
       dotProp.set(packageJson, 'build.mac.entitlementsInherit', 'res/entitlements.mac.inherit.plist')
+
+      // Without a Developer ID certificate the app would ship unsigned. macOS (15+) then denies
+      // local network access (EHOSTUNREACH) even if the user allowed it, so fall back to ad-hoc signing.
+      if (!hasDeveloperIdIdentity()) {
+        console.warn('No Developer ID certificate found, falling back to ad-hoc signing')
+        dotProp.set(packageJson, 'build.mac.identity', '-')
+        // Hardened runtime enforces library validation, which fails for ad-hoc signatures (no Team ID)
+        dotProp.set(packageJson, 'build.mac.hardenedRuntime', false)
+        dotProp.delete(packageJson, 'build.mac.provisioningProfile')
+        // Ad-hoc signed apps cannot be notarized, see scripts/notarize.ts
+        process.env.MQTT_EXPLORER_ADHOC_SIGNING = 'true'
+      }
     }
   }
 
@@ -143,6 +156,21 @@ async function buildWithOptions(options: builder.CliOptions, buildInfo: BuildInf
   } finally {
     // Roll back changes to package.json
     fs.writeFileSync(jsonLocation, packageJsonStr)
+  }
+}
+
+function hasDeveloperIdIdentity(): boolean {
+  if (process.env.CSC_LINK || process.env.CSC_NAME) {
+    return true
+  }
+  if (process.platform !== 'darwin') {
+    return false
+  }
+  try {
+    const identities = execFileSync('security', ['find-identity', '-v', '-p', 'codesigning']).toString()
+    return identities.includes('Developer ID Application')
+  } catch {
+    return false
   }
 }
 
