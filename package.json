@@ -60,6 +60,9 @@
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "MQTT Explorer connects to MQTT brokers on your local network."
+      },
       "publish": [
         "github"
       ]

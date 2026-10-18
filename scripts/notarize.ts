@@ -19,6 +19,11 @@ export default async function notarizing(context: Context) {
     return
   }
 
+  if (process.env.MQTT_EXPLORER_ADHOC_SIGNING === 'true') {
+    console.warn('Skipping notarization: app is only ad-hoc signed')
+    return
+  }
+
   // Check for required environment variables
   const appleId = process.env.APPLE_ID
   const appleIdPassword = process.env.APPLE_APP_SPECIFIC_PASSWORD
